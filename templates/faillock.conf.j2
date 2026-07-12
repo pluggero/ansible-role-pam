@@ -1,0 +1,6 @@
+{{ ansible_managed | comment }}
+deny = {{ pam_faillock_deny }}
+unlock_time = {{ pam_faillock_unlock_time }}
+{% if pam_faillock_even_deny_root %}
+even_deny_root
+{% endif %}

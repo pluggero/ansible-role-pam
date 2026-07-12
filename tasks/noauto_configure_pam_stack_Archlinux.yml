@@ -1,0 +1,10 @@
+---
+- name: Deploy system-auth PAM stack
+  ansible.builtin.template:
+    src: pam_stack_Archlinux.j2
+    dest: /etc/pam.d/system-auth
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true

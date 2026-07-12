@@ -1,0 +1,86 @@
+---
+name: CI
+"on":
+  pull_request:
+  schedule:
+    - cron: "0 7 * * 5"
+  workflow_dispatch:
+
+concurrency:
+  group: ansible-roles-ci
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: "pluggero.pam"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          path: "pluggero.pam"
+
+      - name: Set up Python 3
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: pip3 install -r requirements.txt
+
+      - name: Run yamllint
+        run: |
+          yamllint .
+
+      - name: Run ansible-lint
+        run: |
+          ansible-lint .
+
+  molecule:
+    name: Molecule
+    runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        distro:
+          - debian12
+          - archlinux
+          - ubuntu2404
+
+    steps:
+      - name: Check out the codebase
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          path: "pluggero.pam"
+
+      - name: Set up Python 3
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.14"
+
+      - name: Install test dependencies
+        run: pip3 install -r requirements.txt
+
+      - name: Run Molecule tests
+        run: molecule test
+        env:
+          PY_COLORS: "1"
+          ANSIBLE_FORCE_COLOR: "1"
+          MOLECULE_DISTRO: ${{ matrix.distro }}
+
+  status-check:
+    name: Status Check
+    runs-on: ubuntu-latest
+    needs: [lint, molecule]
+    if: always()
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Check all jobs passed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

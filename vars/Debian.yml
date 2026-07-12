@@ -1,0 +1,6 @@
+---
+pam_dep_pkgs: []
+
+pam_distro_pkgs:
+  - libpam-pwquality
+  - libpam-modules

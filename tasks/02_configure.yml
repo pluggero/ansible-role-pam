@@ -1,0 +1,28 @@
+---
+- name: Deploy faillock configuration
+  ansible.builtin.template:
+    src: faillock.conf.j2
+    dest: /etc/security/faillock.conf
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+
+- name: Set password maximum age in login.defs
+  ansible.builtin.lineinfile:
+    path: /etc/login.defs
+    regexp: "^PASS_MAX_DAYS"
+    line: "PASS_MAX_DAYS    {{ pam_pass_max_days }}"
+    state: present
+  become: true
+
+- name: Configure PAM stack OS-specifically
+  ansible.builtin.include_tasks: "{{ task_file }}"
+  with_first_found:
+    - "{{ role_path }}/tasks/noauto_configure_pam_stack_{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ role_path }}/tasks/noauto_configure_pam_stack_{{ ansible_os_family }}-{{ ansible_distribution_major_version }}.yml"
+    - "{{ role_path }}/tasks/noauto_configure_pam_stack_{{ ansible_distribution }}.yml"
+    - "{{ role_path }}/tasks/noauto_configure_pam_stack_{{ ansible_os_family }}.yml"
+    - "{{ role_path }}/tasks/noauto_configure_pam_stack_{{ ansible_lsb.id }}.yml"
+  loop_control:
+    loop_var: task_file

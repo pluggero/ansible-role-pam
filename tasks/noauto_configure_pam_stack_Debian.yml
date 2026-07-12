@@ -1,0 +1,30 @@
+---
+- name: Deploy common-auth PAM stack
+  ansible.builtin.template:
+    src: pam_common_auth_Debian.j2
+    dest: /etc/pam.d/common-auth
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true
+
+- name: Deploy common-account PAM stack
+  ansible.builtin.template:
+    src: pam_common_account_Debian.j2
+    dest: /etc/pam.d/common-account
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true
+
+- name: Deploy common-password PAM stack
+  ansible.builtin.template:
+    src: pam_common_password_Debian.j2
+    dest: /etc/pam.d/common-password
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true

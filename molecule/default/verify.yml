@@ -1,0 +1,212 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: true
+
+  vars_files:
+    - ../../defaults/main.yml
+    - ../../vars/molecule.yml
+
+  tasks:
+    # --- Shared: faillock.conf ---
+
+    - name: Read faillock.conf
+      ansible.builtin.slurp:
+        src: /etc/security/faillock.conf
+      register: pam_verify_faillock_conf
+
+    - name: Assert faillock deny setting
+      ansible.builtin.assert:
+        that:
+          - "'deny = ' ~ pam_faillock_deny in pam_verify_faillock_conf.content | b64decode"
+        fail_msg: "faillock.conf missing expected 'deny' setting"
+
+    - name: Assert faillock unlock_time setting
+      ansible.builtin.assert:
+        that:
+          - "'unlock_time = ' ~ pam_faillock_unlock_time in pam_verify_faillock_conf.content | b64decode"
+        fail_msg: "faillock.conf missing expected 'unlock_time' setting"
+
+    # --- Shared: login.defs ---
+
+    - name: Read login.defs
+      ansible.builtin.slurp:
+        src: /etc/login.defs
+      register: pam_verify_login_defs
+
+    - name: Assert PASS_MAX_DAYS is set
+      ansible.builtin.assert:
+        that:
+          - "'PASS_MAX_DAYS' in pam_verify_login_defs.content | b64decode"
+        fail_msg: "login.defs does not contain PASS_MAX_DAYS"
+
+    # --- Arch Linux: system-auth ---
+
+    - name: Read system-auth PAM stack
+      ansible.builtin.slurp:
+        src: /etc/pam.d/system-auth
+      register: pam_verify_system_auth
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Assert pam_faillock is present in system-auth
+      ansible.builtin.assert:
+        that:
+          - "'pam_faillock.so' in pam_verify_system_auth.content | b64decode"
+        fail_msg: "system-auth does not contain pam_faillock.so"
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Assert pam_pwquality is present in system-auth
+      ansible.builtin.assert:
+        that:
+          - "'pam_pwquality.so' in pam_verify_system_auth.content | b64decode"
+        fail_msg: "system-auth does not contain pam_pwquality.so"
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Assert pam_pwhistory is present in system-auth
+      ansible.builtin.assert:
+        that:
+          - "'pam_pwhistory.so' in pam_verify_system_auth.content | b64decode"
+        fail_msg: "system-auth does not contain pam_pwhistory.so"
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    # --- Debian/Ubuntu: common-auth ---
+
+    - name: Read common-auth PAM stack
+      ansible.builtin.slurp:
+        src: /etc/pam.d/common-auth
+      register: pam_verify_common_auth
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert pam_faillock is present in common-auth
+      ansible.builtin.assert:
+        that:
+          - "'pam_faillock.so' in pam_verify_common_auth.content | b64decode"
+        fail_msg: "common-auth does not contain pam_faillock.so"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # --- Debian/Ubuntu: common-account ---
+
+    - name: Read common-account PAM stack
+      ansible.builtin.slurp:
+        src: /etc/pam.d/common-account
+      register: pam_verify_common_account
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert pam_faillock is present in common-account
+      ansible.builtin.assert:
+        that:
+          - "'pam_faillock.so' in pam_verify_common_account.content | b64decode"
+        fail_msg: "common-account does not contain pam_faillock.so"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # --- Debian/Ubuntu: common-password ---
+
+    - name: Read common-password PAM stack
+      ansible.builtin.slurp:
+        src: /etc/pam.d/common-password
+      register: pam_verify_common_password
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert pam_pwquality is present in common-password
+      ansible.builtin.assert:
+        that:
+          - "'pam_pwquality.so' in pam_verify_common_password.content | b64decode"
+        fail_msg: "common-password does not contain pam_pwquality.so"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert pam_pwhistory is present in common-password
+      ansible.builtin.assert:
+        that:
+          - "'pam_pwhistory.so' in pam_verify_common_password.content | b64decode"
+        fail_msg: "common-password does not contain pam_pwhistory.so"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    # --- Shared: account lockout test ---
+
+    - name: Install python-pam for faillock testing (Arch)
+      ansible.builtin.package:
+        name: python-pam
+        state: present
+      become: true
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Install python3-pip for faillock testing (Debian/Ubuntu)
+      ansible.builtin.apt:
+        name: python3-pip
+        state: present
+      become: true
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Install python-pam via pip for faillock testing (Debian/Ubuntu)
+      ansible.builtin.command:
+        cmd: python3 -m pip install --break-system-packages python-pam six
+      become: true
+      register: pam_pip_result
+      changed_when: "'Successfully installed' in pam_pip_result.stdout"
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Create test user for faillock verification
+      ansible.builtin.user:
+        name: pam_verify_user
+        password: "{{ 'ValidPassword123!' | password_hash('sha512') }}"
+        state: present
+      become: true
+
+    - name: Set PAM service for faillock test
+      ansible.builtin.set_fact:
+        pam_verify_service: "{{ 'login' if ansible_facts['os_family'] == 'Archlinux' else 'common-auth' }}"
+
+    - name: Attempt failed authentication (1/2)
+      ansible.builtin.command:
+        cmd: python3 -c "import pam; pam.pam().authenticate('pam_verify_user', 'wrongpassword', service='{{ pam_verify_service }}')"
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Attempt failed authentication (2/2)
+      ansible.builtin.command:
+        cmd: python3 -c "import pam; pam.pam().authenticate('pam_verify_user', 'wrongpassword', service='{{ pam_verify_service }}')"
+      failed_when: false
+      changed_when: false
+      become: true
+
+    - name: Check faillock count for test user (Arch)
+      ansible.builtin.command:
+        cmd: faillock --user pam_verify_user
+      register: pam_verify_faillock_output
+      become: true
+      changed_when: false
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Assert faillock recorded valid failed attempts (Arch)
+      ansible.builtin.assert:
+        that:
+          - "pam_verify_faillock_output.stdout | regex_search(' V$', multiline=True) is not none"
+        fail_msg: >-
+          faillock did not record valid failed attempts for pam_verify_user.
+          Output: {{ pam_verify_faillock_output.stdout }}
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Check faillock tally file for test user (Debian/Ubuntu)
+      ansible.builtin.stat:
+        path: /run/faillock/pam_verify_user
+      register: pam_verify_faillock_file
+      become: true
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Assert faillock tally file has entries (Debian/Ubuntu)
+      ansible.builtin.assert:
+        that:
+          - pam_verify_faillock_file.stat.exists
+          - pam_verify_faillock_file.stat.size > 0
+        fail_msg: >-
+          faillock did not record failed attempts for pam_verify_user.
+          File /run/faillock/pam_verify_user does not exist or is empty.
+      when: ansible_facts['os_family'] == 'Debian'
+
+    - name: Remove test user
+      ansible.builtin.user:
+        name: pam_verify_user
+        state: absent
+        remove: true
+      become: true
