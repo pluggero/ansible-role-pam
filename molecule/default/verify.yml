@@ -55,18 +55,26 @@
         fail_msg: "system-auth does not contain pam_faillock.so"
       when: ansible_facts['os_family'] == 'Archlinux'
 
-    - name: Assert pam_pwquality is present in system-auth
-      ansible.builtin.assert:
-        that:
-          - "'pam_pwquality.so' in pam_verify_system_auth.content | b64decode"
-        fail_msg: "system-auth does not contain pam_pwquality.so"
+    # --- Arch Linux: passwd ---
+
+    - name: Read passwd PAM service file
+      ansible.builtin.slurp:
+        src: /etc/pam.d/passwd
+      register: pam_verify_passwd
       when: ansible_facts['os_family'] == 'Archlinux'
 
-    - name: Assert pam_pwhistory is present in system-auth
+    - name: Assert pam_pwquality is present in passwd
       ansible.builtin.assert:
         that:
-          - "'pam_pwhistory.so' in pam_verify_system_auth.content | b64decode"
-        fail_msg: "system-auth does not contain pam_pwhistory.so"
+          - "'pam_pwquality.so' in pam_verify_passwd.content | b64decode"
+        fail_msg: "passwd does not contain pam_pwquality.so"
+      when: ansible_facts['os_family'] == 'Archlinux'
+
+    - name: Assert pam_pwhistory is present in passwd
+      ansible.builtin.assert:
+        that:
+          - "'pam_pwhistory.so' in pam_verify_passwd.content | b64decode"
+        fail_msg: "passwd does not contain pam_pwhistory.so"
       when: ansible_facts['os_family'] == 'Archlinux'
 
     # --- Debian/Ubuntu: common-auth ---

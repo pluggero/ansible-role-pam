@@ -1,0 +1,8 @@
+#%PAM-1.0
+# {{ ansible_managed }}
+
+auth       include     system-auth
+account    include     system-auth
+password   required    pam_pwquality.so     retry={{ pam_pwquality_retry }} minlen={{ pam_pwquality_minlen }} difok={{ pam_pwquality_difok }} minclass={{ pam_pwquality_minclass }}
+password   requisite   pam_pwhistory.so     remember={{ pam_pwhistory_remember }} use_authtok
+password   required    pam_unix.so          use_authtok sha512 shadow
