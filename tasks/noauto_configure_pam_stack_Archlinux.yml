@@ -8,3 +8,13 @@
     mode: "0644"
     backup: true
   become: true
+
+- name: Deploy passwd PAM service file
+  ansible.builtin.template:
+    src: pam_passwd_Archlinux.j2
+    dest: /etc/pam.d/passwd
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  become: true
