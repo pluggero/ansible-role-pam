@@ -1,2 +1,4 @@
 ---
-# No overrides required; production defaults apply
+pam_password_aging_exclude_users:
+  - root
+  - pam_aging_excluded

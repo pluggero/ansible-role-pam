@@ -69,10 +69,34 @@ pam_faillock_even_deny_root: true
 Apply the lockout policy to the root account as well.
 
 ```yaml
-pam_pass_max_days: 365
+pam_password_aging_enabled: true
 ```
 
-Maximum number of days a password is valid before the user must change it.
+Enable password aging (`/etc/login.defs` and `/etc/shadow`).
+
+```yaml
+pam_pass_max_days: 365
+pam_pass_warn_age: 14
+```
+
+Maximum password age and warning days before expiry. Applied to
+`/etc/login.defs` (new accounts) and `/etc/shadow` (all existing accounts with a password).
+Accounts whose password is older than `pam_pass_max_days` expire immediately.
+
+```yaml
+pam_password_aging_exclude_users:
+  - root
+```
+
+Accounts whose `/etc/shadow` aging is left unchanged.
+
+**Note:** Setting this variable replaces the default list. Add `root` again to keep it excluded:
+
+```yaml
+pam_password_aging_exclude_users:
+  - root
+  - svc_backup
+```
 
 ## Dependencies
 
