@@ -8,13 +8,40 @@
     mode: "0644"
   become: true
 
-- name: Set password maximum age in login.defs
-  ansible.builtin.lineinfile:
-    path: /etc/login.defs
-    regexp: "^PASS_MAX_DAYS"
-    line: "PASS_MAX_DAYS    {{ pam_pass_max_days }}"
-    state: present
+- name: Configure password aging
+  when: pam_password_aging_enabled
   become: true
+  block:
+    - name: Set password aging defaults in login.defs
+      ansible.builtin.lineinfile:
+        path: /etc/login.defs
+        regexp: "^{{ item.key }}\\s"
+        line: "{{ item.key }}    {{ item.value }}"
+        state: present
+      loop:
+        - key: PASS_MAX_DAYS
+          value: "{{ pam_pass_max_days }}"
+        - key: PASS_WARN_AGE
+          value: "{{ pam_pass_warn_age }}"
+      loop_control:
+        label: "{{ item.key }}"
+
+    - name: Fetch shadow database
+      ansible.builtin.getent:
+        database: shadow
+
+    - name: Apply password aging to existing accounts with a password
+      ansible.builtin.user:
+        name: "{{ item.key }}"
+        password_expire_max: "{{ pam_pass_max_days }}"
+        password_expire_warn: "{{ pam_pass_warn_age }}"
+      loop: "{{ getent_shadow | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+      when:
+        - item.key not in pam_password_aging_exclude_users
+        - item.value[0] | length > 0
+        - item.value[0][0] not in ['!', '*']
 
 - name: Configure PAM stack OS-specifically
   ansible.builtin.include_tasks: "{{ task_file }}"

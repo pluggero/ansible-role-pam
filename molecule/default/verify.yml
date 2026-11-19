@@ -27,18 +27,53 @@
           - "'unlock_time = ' ~ pam_faillock_unlock_time in pam_verify_faillock_conf.content | b64decode"
         fail_msg: "faillock.conf missing expected 'unlock_time' setting"
 
-    # --- Shared: login.defs ---
+    # --- Shared: password aging ---
 
-    - name: Read login.defs
-      ansible.builtin.slurp:
-        src: /etc/login.defs
-      register: pam_verify_login_defs
+    - name: Verify password aging
+      when: pam_password_aging_enabled
+      block:
+        - name: Read login.defs
+          ansible.builtin.slurp:
+            src: /etc/login.defs
+          register: pam_verify_login_defs
 
-    - name: Assert PASS_MAX_DAYS is set
-      ansible.builtin.assert:
-        that:
-          - "'PASS_MAX_DAYS' in pam_verify_login_defs.content | b64decode"
-        fail_msg: "login.defs does not contain PASS_MAX_DAYS"
+        - name: Assert password aging defaults are set in login.defs
+          ansible.builtin.assert:
+            that:
+              - pam_verify_login_defs.content | b64decode
+                | regex_search('^' ~ item.key ~ '\s+' ~ item.value ~ '\s*$', multiline=True) is not none
+            fail_msg: "login.defs does not contain {{ item.key }} {{ item.value }}"
+          loop:
+            - key: PASS_MAX_DAYS
+              value: "{{ pam_pass_max_days }}"
+            - key: PASS_WARN_AGE
+              value: "{{ pam_pass_warn_age }}"
+          loop_control:
+            label: "{{ item.key }}"
+
+        - name: Fetch shadow database
+          ansible.builtin.getent:
+            database: shadow
+          become: true
+
+        - name: Assert aging applied to existing account
+          ansible.builtin.assert:
+            that:
+              - getent_shadow['pam_aging_user'][3] | int == pam_pass_max_days | int
+              - getent_shadow['pam_aging_user'][4] | int == pam_pass_warn_age | int
+            fail_msg: "Shadow aging fields of pam_aging_user: {{ getent_shadow['pam_aging_user'] }}"
+
+        - name: Assert aging not applied to excluded account
+          ansible.builtin.assert:
+            that:
+              - getent_shadow['pam_aging_excluded'][3] | int == 99999
+            fail_msg: "Shadow aging fields of pam_aging_excluded: {{ getent_shadow['pam_aging_excluded'] }}"
+
+        - name: Assert aging not applied to root
+          ansible.builtin.assert:
+            that:
+              - getent_shadow['root'][3] | int != pam_pass_max_days | int
+            fail_msg: "Shadow aging fields of root were changed: {{ getent_shadow['root'] }}"
 
     # --- Arch Linux: system-auth ---
 

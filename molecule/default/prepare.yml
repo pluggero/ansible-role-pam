@@ -1,0 +1,19 @@
+---
+- name: Prepare
+  hosts: all
+
+  vars:
+    ansible_user: ansible
+    ansible_become_password: ansible
+
+  tasks:
+    - name: Create pre-existing accounts without password aging
+      ansible.builtin.user:
+        name: "{{ item }}"
+        password: "{{ 'ValidPassword123!' | password_hash('sha512', 'moleculesalt') }}"
+        password_expire_max: 99999
+        password_expire_warn: 7
+      become: true
+      loop:
+        - pam_aging_user
+        - pam_aging_excluded
