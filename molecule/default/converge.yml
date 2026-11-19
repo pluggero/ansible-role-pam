@@ -18,4 +18,4 @@
       when: ansible_pkg_mgr == "apt"
 
   roles:
-    - role: pluggero.pam
+    - role: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"

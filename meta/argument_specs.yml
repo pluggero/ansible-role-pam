@@ -1,0 +1,76 @@
+---
+argument_specs:
+  main:
+    short_description: Configure PAM authentication, password policy and account lockout on various Linux distributions.
+    options:
+      pam_install_method:
+        type: str
+        default: package
+        choices:
+          - package
+        description: Method used to install the PAM packages.
+
+      pam_pwquality_retry:
+        type: int
+        default: 3
+        description: Number of retries allowed when setting a new password.
+
+      pam_pwquality_minlen:
+        type: int
+        default: 15
+        description: Minimum acceptable password length.
+
+      pam_pwquality_difok:
+        type: int
+        default: 5
+        description: Minimum number of characters that must differ from the previous password.
+
+      pam_pwquality_minclass:
+        type: int
+        default: 4
+        choices: [0, 1, 2, 3, 4]
+        description: Minimum number of character classes required (uppercase, lowercase, digits, symbols).
+
+      pam_pwhistory_remember:
+        type: int
+        default: 400
+        description: Number of previous passwords that cannot be reused.
+
+      pam_faillock_deny:
+        type: int
+        default: 5
+        description: Number of consecutive failed login attempts before the account is locked.
+
+      pam_faillock_unlock_time:
+        type: int
+        default: 1800
+        description: Time in seconds after which a locked account is automatically unlocked.
+
+      pam_faillock_even_deny_root:
+        type: bool
+        default: true
+        description: Apply the lockout policy to the root account as well.
+
+      pam_password_aging_enabled:
+        type: bool
+        default: true
+        description: Enable password aging (/etc/login.defs and /etc/shadow).
+
+      pam_pass_max_days:
+        type: int
+        default: 365
+        description: Maximum number of days a password is valid.
+
+      pam_pass_warn_age:
+        type: int
+        default: 14
+        description: Number of days before password expiry a warning is shown.
+
+      pam_password_aging_exclude_users:
+        type: list
+        elements: str
+        default:
+          - root
+        description: >-
+          Accounts whose /etc/shadow aging is left unchanged.
+          Setting this variable replaces the default list, so add root again to keep it excluded.
